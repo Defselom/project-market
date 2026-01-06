@@ -8,9 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  train_and_deploy:
+  preparation:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -25,17 +24,167 @@ jobs:
         python -m pip install --upgrade pip
         pip install pandas numpy scikit-learn xgboost lightgbm optuna statsmodels
 
+    - name: Upload code as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: project-code
+        path: .
+
+  train_xgboost:
+    runs-on: ubuntu-latest
+    needs: preparation
+    steps:
+    - name: Download code
+      uses: actions/download-artifact@v4
+      with:
+        name: project-code
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: pip install pandas numpy scikit-learn xgboost optuna
+
     - name: Train XGBoost Model
       run: python train_xgboost.py
+
+    - name: Upload XGBoost artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: xgboost-model
+        path: trained_models/
+
+  train_lightgbm:
+    runs-on: ubuntu-latest
+    needs: preparation
+    steps:
+    - name: Download code
+      uses: actions/download-artifact@v4
+      with:
+        name: project-code
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: pip install pandas numpy scikit-learn lightgbm optuna
 
     - name: Train LightGBM Model
       run: python train_lightgbm.py
 
+    - name: Upload LightGBM artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: lightgbm-model
+        path: trained_models/
+
+  train_sarimax:
+    runs-on: ubuntu-latest
+    needs: preparation
+    steps:
+    - name: Download code
+      uses: actions/download-artifact@v4
+      with:
+        name: project-code
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: pip install pandas numpy scikit-learn statsmodels
+
     - name: Train SARIMAX Model
       run: python train_sarimax.py
 
+    - name: Upload SARIMAX artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: sarimax-model
+        path: trained_models/
+
+  evaluation:
+    runs-on: ubuntu-latest
+    needs: [train_xgboost, train_lightgbm, train_sarimax]
+    steps:
+    - name: Download code
+      uses: actions/download-artifact@v4
+      with:
+        name: project-code
+
+    - name: Download XGBoost model
+      uses: actions/download-artifact@v4
+      with:
+        name: xgboost-model
+        path: trained_models/
+
+    - name: Download LightGBM model
+      uses: actions/download-artifact@v4
+      with:
+        name: lightgbm-model
+        path: trained_models/
+
+    - name: Download SARIMAX model
+      uses: actions/download-artifact@v4
+      with:
+        name: sarimax-model
+        path: trained_models/
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
     - name: Select Best Model
       run: python select_best_model.py
+
+    - name: Upload evaluation result
+      uses: actions/upload-artifact@v4
+      with:
+        name: best-model-selection
+        path: best_model.txt
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: evaluation
+    steps:
+    - name: Download code
+      uses: actions/download-artifact@v4
+      with:
+        name: project-code
+
+    - name: Download all models
+      uses: actions/download-artifact@v4
+      with:
+        name: xgboost-model
+        path: trained_models/
+
+    - name: Download LightGBM model
+      uses: actions/download-artifact@v4
+      with:
+        name: lightgbm-model
+        path: trained_models/
+
+    - name: Download SARIMAX model
+      uses: actions/download-artifact@v4
+      with:
+        name: sarimax-model
+        path: trained_models/
+
+    - name: Download best model selection
+      uses: actions/download-artifact@v4
+      with:
+        name: best-model-selection
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
 
     - name: Deploy Best Model
       run: python deploy_model.py
@@ -43,5 +192,5 @@ jobs:
     - name: Upload Deployment Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: best-model-and-metrics
+        name: deployed-model
         path: deploy/
