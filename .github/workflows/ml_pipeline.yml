@@ -1,0 +1,47 @@
+name: ML Training and Deployment Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  train_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas numpy scikit-learn xgboost lightgbm optuna statsmodels
+
+    - name: Train XGBoost Model
+      run: python train_xgboost.py
+
+    - name: Train LightGBM Model
+      run: python train_lightgbm.py
+
+    - name: Train SARIMAX Model
+      run: python train_sarimax.py
+
+    - name: Select Best Model
+      run: python select_best_model.py
+
+    - name: Deploy Best Model
+      run: python deploy_model.py
+
+    - name: Upload Deployment Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: best-model-and-metrics
+        path: deploy/
