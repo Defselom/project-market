@@ -143,6 +143,24 @@ jobs:
     - name: Select Best Model
       run: python select_best_model.py
 
+    - name: Validate Model summary
+      run: |
+        echo "## Model Evaluation Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### XGBoost" >> $GITHUB_STEP_SUMMARY
+        cat trained_models/xgboost_metrics.txt >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### LightGBM" >> $GITHUB_STEP_SUMMARY
+        cat trained_models/lightgbm_metrics.txt >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### SARIMAX" >> $GITHUB_STEP_SUMMARY
+        cat trained_models/sarimax_metrics.txt >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+        echo "### ✅ Best Model Selected" >> $GITHUB_STEP_SUMMARY
+        cat best_model.txt >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
     - name: Upload evaluation result
       uses: actions/upload-artifact@v4
       with:
