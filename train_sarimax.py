@@ -14,21 +14,23 @@ os.makedirs('trained_models', exist_ok=True)
 
 # 1. Loading and Preprocessing
 def load_data():
-    train_path = 'donnees_pretraitees/train_sarimax.csv'
-    test_path = 'donnees_pretraitees/test_sarimax.csv'
+    # Use the same data as other models for consistency in the new daily-aggregated pipeline
+    train_X_path = 'donnees_pretraitees/X_train_7_jours.csv'
+    train_y_path = 'donnees_pretraitees/y_train_7_jours.csv'
+    test_X_path = 'donnees_pretraitees/X_test_7_jours.csv'
+    test_y_path = 'donnees_pretraitees/y_test_7_jours.csv'
 
-    df_train = pd.read_csv(train_path)
-    df_test = pd.read_csv(test_path)
+    X_train = pd.read_csv(train_X_path)
+    y_train = pd.read_csv(train_y_path)
+    X_test = pd.read_csv(test_X_path)
+    y_test = pd.read_csv(test_y_path)
 
-    df_train['Date'] = pd.to_datetime(df_train['Date'])
-    df_test['Date'] = pd.to_datetime(df_test['Date'])
+    if isinstance(y_train, pd.DataFrame): y_train = y_train.iloc[:, 0]
+    if isinstance(y_test, pd.DataFrame): y_test = y_test.iloc[:, 0]
 
-    df_train = df_train.sort_values(by=['Product ID', 'Date'])
-    df_test = df_test.sort_values(by=['Product ID', 'Date'])
-    
-    return df_train, df_test
+    return X_train, y_train, X_test, y_test
 
-df_train, df_test = load_data()
+X_train, y_train, X_test, y_test = load_data()
 
 # 2. Grid Search Function
 def optimize_sarima(series, exog, p_range, d_range, q_range, P_range, D_range, Q_range, s):
@@ -40,7 +42,7 @@ def optimize_sarima(series, exog, p_range, d_range, q_range, P_range, D_range, Q
     best_seasonal_order = None
     best_model = None
     
-    print("Starting Grid Search...")
+    print("Starting Grid Search for SARIMAX...")
     
     for param in pdq:
         for param_seasonal in seasonal_pdq:
@@ -63,52 +65,43 @@ def optimize_sarima(series, exog, p_range, d_range, q_range, P_range, D_range, Q
             except:
                 continue
                 
-    print(f"Best model found: SARIMAX{best_order}x{best_seasonal_order} - AIC:{best_aic}")
+    if best_model:
+        print(f"Best model found: SARIMAX{best_order}x{best_seasonal_order} - AIC:{best_aic}")
     return best_model, best_order, best_seasonal_order
 
-# 3. Training (Global Model Approach for simplicity in pipeline)
-# In the notebook, there was per-product and global. We will implement global here or a representative one.
-# Let's follow the "Global" or "Single Product" based on notebook's main outcome.
-# The notebook had a "Modèle Global" section.
-
+# 3. Training
 print("\n=== Training Global SARIMAX Model ===")
-# Assuming global means aggregating or using a specific one. 
-# Let's use the logic for a single product as a representative test or the whole dataset if possible.
-# Most SARIMAX models are trained per series.
-# For the pipeline, we might want a script that trains for ALL or selects one.
-# Let's train for the first product found as a baseline or follow the notebook's end logic.
 
-product_id = df_train['Product ID'].unique()[0]
-df_p = df_train[df_train['Product ID'] == product_id].set_index('Date')
-df_p_test = df_test[df_test['Product ID'] == product_id].set_index('Date')
-
-# Exogenous variables
-exog_cols = ['Price', 'Discount', 'Holiday/Promotion', 'Competitor Pricing']
-exog_train = df_p[exog_cols]
-exog_test = df_p_test[exog_cols]
+# Exogenous variables: use a subset of features from X_train
+exog_cols = ['holiday_promotion', 'year', 'month', 'dayofweek']
+exog_train = X_train[[col for col in exog_cols if col in X_train.columns]]
+exog_test = X_test[[col for col in exog_cols if col in X_test.columns]]
 
 # Grid Search ranges (reduced for pipeline speed)
 p = d = q = range(0, 2)
 P = D = Q = range(0, 1) # Seasonal simplified
-s = 12
+s = 7 # Weekly seasonality for daily data
 
 best_model, best_order, best_seasonal_order = optimize_sarima(
-    df_p['Units Sold'], exog_train, p, d, q, P, D, Q, s
+    y_train, exog_train, p, d, q, P, D, Q, s
 )
 
 # Evaluation
-predictions = best_model.forecast(steps=len(df_p_test), exog=exog_test)
-rmse = np.sqrt(mean_squared_error(df_p_test['Units Sold'], predictions))
-mae = mean_absolute_error(df_p_test['Units Sold'], predictions)
+if best_model:
+    predictions = best_model.forecast(steps=len(y_test), exog=exog_test)
+    rmse = np.sqrt(mean_squared_error(y_test, predictions))
+    mae = mean_absolute_error(y_test, predictions)
 
-print(f"SARIMAX Results for {product_id} - RMSE: {rmse:.2f}, MAE: {mae:.2f}")
+    print(f"SARIMAX Results - RMSE: {rmse:.2f}, MAE: {mae:.2f}")
 
-# Saving
-model_path = f'trained_models/sarimax_model_{product_id}.pkl'
-with open(model_path, 'wb') as f:
-    pickle.dump(best_model, f)
+    # Saving
+    model_path = 'trained_models/sarimax_model_optimized.pkl'
+    with open(model_path, 'wb') as f:
+        pickle.dump(best_model, f)
 
-with open('trained_models/sarimax_metrics.txt', 'w') as f:
-    f.write(f"RMSE: {rmse}\nMAE: {mae}\nOrder: {best_order}\nSeasonal Order: {best_seasonal_order}")
+    with open('trained_models/sarimax_metrics.txt', 'w') as f:
+        f.write(f"RMSE: {rmse}\nMAE: {mae}\nOrder: {best_order}\nSeasonal Order: {best_seasonal_order}")
 
-print(f"SARIMAX model saved: {model_path}")
+    print(f"SARIMAX model saved: {model_path}")
+else:
+    print("No SARIMAX model could be trained.")

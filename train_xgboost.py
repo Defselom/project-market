@@ -26,9 +26,15 @@ def load_data():
     X_test = pd.read_csv(test_X_path)
     y_test = pd.read_csv(test_y_path)
 
-    if y_train.shape[1] == 1: y_train = y_train.iloc[:, 0]
-    if y_test.shape[1] == 1: y_test = y_test.iloc[:, 0]
+    if isinstance(y_train, pd.DataFrame) and y_train.shape[1] == 1: y_train = y_train.iloc[:, 0]
+    if isinstance(y_test, pd.DataFrame) and y_test.shape[1] == 1: y_test = y_test.iloc[:, 0]
 
+    # Data Leakage Prevention (as identified in latest notebook)
+    features_to_drop = ['moyenne_ventes_produit', 'moyenne_ventes_magasin']
+    X_train = X_train.drop(columns=[col for col in features_to_drop if col in X_train.columns])
+    X_test = X_test.drop(columns=[col for col in features_to_drop if col in X_test.columns])
+
+    # Convert categorical columns if they exist (XGBoost handle categorical)
     cat_cols = ['Category', 'Region', 'Weather Condition', 'Seasonality']
     for col in cat_cols:
         if col in X_train.columns:
@@ -58,6 +64,7 @@ def objective(trial):
         'reg_lambda': trial.suggest_float('reg_lambda', 1e-8, 10.0, log=True),
     }
 
+    # TimeSeriesSplit for time-series cross-validation
     tscv = TimeSeriesSplit(n_splits=3)
     scores = []
 
@@ -85,7 +92,7 @@ def objective(trial):
 
 print("Starting Hyperparameter Optimization for XGBoost...")
 study = optuna.create_study(direction='minimize')
-study.optimize(objective, n_trials=20)
+study.optimize(objective, n_trials=15) # Reduced n_trials for faster pipeline execution
 
 print("\nBest Hyperparameters:")
 print(study.best_params)

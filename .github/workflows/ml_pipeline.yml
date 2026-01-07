@@ -22,7 +22,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pandas numpy scikit-learn xgboost lightgbm optuna statsmodels
+        pip install pandas numpy scikit-learn xgboost lightgbm optuna statsmodels faker
 
     - name: Upload code as artifact
       uses: actions/upload-artifact@v4
@@ -30,7 +30,7 @@ jobs:
         name: project-code
         path: .
 
-  train_xgboost:
+  data_generation:
     runs-on: ubuntu-latest
     needs: preparation
     steps:
@@ -38,6 +38,38 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: project-code
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: pip install pandas numpy faker
+
+    - name: Generate synthetic data
+      run: python generate_data.py
+
+    - name: Upload preprocessed data
+      uses: actions/upload-artifact@v4
+      with:
+        name: preprocessed-data
+        path: donnees_pretraitees/
+
+  train_xgboost:
+    runs-on: ubuntu-latest
+    needs: [preparation, data_generation]
+    steps:
+    - name: Download code
+      uses: actions/download-artifact@v4
+      with:
+        name: project-code
+
+    - name: Download preprocessed data
+      uses: actions/download-artifact@v4
+      with:
+        name: preprocessed-data
+        path: donnees_pretraitees/
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -58,12 +90,18 @@ jobs:
 
   train_lightgbm:
     runs-on: ubuntu-latest
-    needs: preparation
+    needs: [preparation, data_generation]
     steps:
     - name: Download code
       uses: actions/download-artifact@v4
       with:
         name: project-code
+
+    - name: Download preprocessed data
+      uses: actions/download-artifact@v4
+      with:
+        name: preprocessed-data
+        path: donnees_pretraitees/
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -84,12 +122,18 @@ jobs:
 
   train_sarimax:
     runs-on: ubuntu-latest
-    needs: preparation
+    needs: [preparation, data_generation]
     steps:
     - name: Download code
       uses: actions/download-artifact@v4
       with:
         name: project-code
+
+    - name: Download preprocessed data
+      uses: actions/download-artifact@v4
+      with:
+        name: preprocessed-data
+        path: donnees_pretraitees/
 
     - name: Set up Python
       uses: actions/setup-python@v5

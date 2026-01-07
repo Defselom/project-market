@@ -14,7 +14,7 @@ optuna.logging.set_verbosity(optuna.logging.INFO)
 # Create output directory
 os.makedirs('trained_models', exist_ok=True)
 
-# 1. Loading and Preparation (Same as XGBoost)
+# 1. Loading and Preparation
 def load_data():
     train_X_path = 'donnees_pretraitees/X_train_7_jours.csv'
     train_y_path = 'donnees_pretraitees/y_train_7_jours.csv'
@@ -26,9 +26,15 @@ def load_data():
     X_test = pd.read_csv(test_X_path)
     y_test = pd.read_csv(test_y_path)
 
-    if y_train.shape[1] == 1: y_train = y_train.iloc[:, 0]
-    if y_test.shape[1] == 1: y_test = y_test.iloc[:, 0]
+    if isinstance(y_train, pd.DataFrame) and y_train.shape[1] == 1: y_train = y_train.iloc[:, 0]
+    if isinstance(y_test, pd.DataFrame) and y_test.shape[1] == 1: y_test = y_test.iloc[:, 0]
 
+    # Data Leakage Prevention
+    features_to_drop = ['moyenne_ventes_produit', 'moyenne_ventes_magasin']
+    X_train = X_train.drop(columns=[col for col in features_to_drop if col in X_train.columns])
+    X_test = X_test.drop(columns=[col for col in features_to_drop if col in X_test.columns])
+
+    # Convert categorical columns if they exist
     cat_cols = ['Category', 'Region', 'Weather Condition', 'Seasonality']
     for col in cat_cols:
         if col in X_train.columns:
@@ -83,7 +89,7 @@ def objective(trial):
 
 print("Starting Hyperparameter Optimization for LightGBM...")
 study = optuna.create_study(direction='minimize')
-study.optimize(objective, n_trials=20)
+study.optimize(objective, n_trials=15)
 
 print("\nBest Hyperparameters:")
 print(study.best_params)

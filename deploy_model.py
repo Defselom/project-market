@@ -12,16 +12,8 @@ def main():
     model_files = {
         'xgboost': 'trained_models/xgboost_model_optimized.pkl',
         'lightgbm': 'trained_models/lightgbm_model_optimized.pkl',
-        'sarimax': None # We'll find it below
+        'sarimax': 'trained_models/sarimax_model_optimized.pkl'
     }
-
-    if best_model_name == 'sarimax':
-        # Find the first pkl file starting with sarimax_model_
-        files = os.listdir('trained_models')
-        for f in files:
-            if f.startswith('sarimax_model_') and f.endswith('.pkl'):
-                model_files['sarimax'] = os.path.join('trained_models', f)
-                break
 
     source_path = model_files.get(best_model_name)
     
